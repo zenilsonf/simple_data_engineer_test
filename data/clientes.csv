@@ -1,0 +1,7 @@
+cliente_id,nome,updated_at,email
+1,Ana,2025-07-28T10:00:00,ana@example.com
+2,Beto,2025-07-28T09:00:00,beto@example.com
+2,Beto Atualizado,2025-07-29T08:00:00,beto.novo@example.com
+3,Camila,2025-07-27T12:00:00,camila@example.com
+4,Diego,2025-07-29 07:00:00,diego@example.com
+5,Elisa,INVALID_DATE,elisa@example.com

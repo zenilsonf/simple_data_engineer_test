@@ -1,0 +1,17 @@
+[project]
+name = "simple-data-engineer-test"
+version = "0.1.0"
+description = "Desafio Rápido – Engenheiro(a) de Dados (Python + Logs)"
+authors = [
+    {name = "Zenilson Silva"}
+]
+readme = "README.md"
+requires-python = "3.11.5"
+dependencies = [
+    "pandas (>=2.3.1,<3.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

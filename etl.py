@@ -45,6 +45,27 @@ def leitura_arquivos(diretorio: str) -> dict:
 
     return dfs
 
+def valida_schema(df: pd.DataFrame, tabela: str, colunas_obrigatorias: list) -> bool:
+    """
+        Valida se o DataFrame possui as colunas esperadas.
+        Args:
+            df (pd.DataFrame): DataFrame a ser validado.
+            tabela (str): Nome da tabela para log.
+            colunas (list): Lista de colunas esperadas.
+        Returns:
+            bool: True se o DataFrame contém todas as colunas, False caso contrário.
+    """
+
+    logging.info(f'Validando schema da tabela {tabela}.')
+    colunas_faltantes = set(colunas_obrigatorias) - set(df.columns)
+    if colunas_faltantes:
+        logging.error(f'Tabela {tabela} não contém as colunas obrigatórias: {colunas_faltantes}')
+        return False
+    logging.info(f'Tabela {tabela} validada com sucesso.')
+    logging.info(f'Colunas encontradas: {df.columns.tolist()}')
+
+    return True
+
 
 def normaliza_datas(df: pd.DataFrame, nome_coluna: str) -> pd.DataFrame:
     """
@@ -56,12 +77,14 @@ def normaliza_datas(df: pd.DataFrame, nome_coluna: str) -> pd.DataFrame:
             pd.DataFrame: DataFrame com a coluna de data convertida.
     """
 
-    logging.info(f'Convertendo colunas de data para o formato datetime.')
+    logging.info(f'Normalizando datas na coluna: {nome_coluna}')
+
+    #Exemplos de formatação de data
+    exemplos_originais = df[nome_coluna].head(5).tolist()
+    logging.info(f'Exemplos de formatos de data encontrados: {exemplos_originais}')
 
     df[nome_coluna] = df[nome_coluna].str.replace(' ', 'T', regex=False)
     df[nome_coluna] = df[nome_coluna].str.replace('/', '-', regex=False)
-
-    print(df.head())
 
     df[nome_coluna] = pd.to_datetime(df[nome_coluna], errors='coerce')
 
@@ -84,12 +107,34 @@ def normaliza_valores_numericos(df: pd.DataFrame, nome_coluna: str) -> pd.DataFr
     """
 
     logging.info(f'Normalizando valores numéricos na coluna: {nome_coluna}')
+
     if nome_coluna in df.columns:
-        # Substitui strings vazias por NaN antes de converter
+
+        # Contando problemas específicos antes do tratamento
+        qtd_vazias = (df[nome_coluna] == '').sum()
+        qtd_nulas = df[nome_coluna].isna().sum()
+
+        
+        # Substituindo strings vazias por NaN antes de converter
         df[nome_coluna] = df[nome_coluna].replace('', pd.NA)
         df[nome_coluna] = pd.to_numeric(df[nome_coluna], errors='coerce')
-        num_linhas_descartadas = df[nome_coluna].isna().sum()
-        logging.error(f"{num_linhas_descartadas} linhas descartadas por valor numérico inválido.")
+
+        # Contando problemas APÓS conversão
+        total_invalidas = df[nome_coluna].isna().sum()
+        qtd_nao_numericas = total_invalidas - qtd_nulas - qtd_vazias
+
+        # Logs específicos por tipo de problema
+        if qtd_vazias > 0:
+            logging.error(f"{qtd_vazias} vendas com {nome_coluna} vazia serão descartadas.")
+        if qtd_nulas > 0:
+            logging.error(f"{qtd_nulas} vendas com {nome_coluna} nula serão descartadas.")
+        if qtd_nao_numericas > 0:
+            logging.error(f"{qtd_nao_numericas} vendas com {nome_coluna} não numérica serão descartadas.")
+        
+        # Log consolidado
+        if total_invalidas > 0:
+            logging.error(f"Total: {total_invalidas} vendas descartadas por problemas na coluna {nome_coluna}.")
+        
         df.dropna(subset=[nome_coluna], inplace=True)
 
     return df
@@ -130,13 +175,20 @@ def fato_diario(dfvendas: pd.DataFrame) -> pd.DataFrame:
     dfvendas['valor_total'] = dfvendas['valor'] * dfvendas['quantidade']
     df_diario = dfvendas.groupby(['cliente_id', 'data_formatada'])['valor_total'].sum().reset_index()
 
-    print(df_diario.head())
-
     return df_diario
 
 if __name__ == '__main__':
 
     tabelas = leitura_arquivos(args.input_dir)
+
+    # Validando schemas antes de processar
+    schema_clientes = ['cliente_id', 'nome', 'updated_at', 'email']
+    schema_vendas = ['venda_id', 'cliente_id', 'data', 'valor', 'quantidade']
+    
+    if not valida_schema(tabelas['clientes'], 'clientes', schema_clientes):
+        exit(1)
+    if not valida_schema(tabelas['vendas'], 'vendas', schema_vendas):
+        exit(1)
 
     for nome_tabela, df in tabelas.items():
         if nome_tabela == 'clientes':
@@ -148,6 +200,8 @@ if __name__ == '__main__':
             vendas_df = normaliza_valores_numericos(vendas_df, 'quantidade')
             vendas_df = fato_diario(vendas_df)
 
+    # Criando o DataFrame diário
+    logging.info('Criando DataFrame diário a partir das vendas e clientes.')
     df_diario = vendas_df.merge(clientes_df[['cliente_id']], on='cliente_id', how='inner')
     df_diario = df_diario.rename(columns={'data_formatada': 'dt'})
     df_diario = df_diario[['dt', 'cliente_id', 'valor_total']]  

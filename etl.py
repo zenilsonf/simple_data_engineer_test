@@ -30,7 +30,7 @@ args = parser.parse_args()
 #     return logger
 
 
-def leitura_arquivos(caminho: List[str], diretorio: str) -> dict:
+def leitura_arquivos(diretorio: str) -> dict:
 
     """Lê arquivos CSV de um diretório e retorna uma lista de todos os dataframes.
     Args:
@@ -39,16 +39,17 @@ def leitura_arquivos(caminho: List[str], diretorio: str) -> dict:
         dfs: Lista contendo os dataframes.
     """
     dfs = {}
-    logging.info(f'Lendo arquivos do diretório: {caminho}')
+    logging.info(f'Lendo arquivos do diretório: {diretorio}')
+
     for tabela in TABLES:
-        caminho = f'{diretorio}/{tabela}.csv'
+        arquivo_path  = f'{diretorio}/{tabela}.csv'
         try:
-            df = pd.read_csv(caminho)
-            logging.info(f'Arquivo {caminho}.csv lido com sucesso.')
-            logging.info(f'{len(df)} registros lidos do {caminho}.csv')
+            df = pd.read_csv(arquivo_path )
+            logging.info(f'Arquivo {arquivo_path }.csv lido com sucesso.')
+            logging.info(f'{len(df)} registros lidos do {tabela}.csv')
             dfs[tabela] = df
         except FileNotFoundError:
-            logging.error(f'Arquivo {caminho}.csv não encontrado.')
+            logging.error(f'Arquivo {tabela}.csv não encontrado.')
             continue
 
     return dfs
@@ -125,7 +126,7 @@ def deduplicar_dimensao(df: pd.DataFrame, chave_primaria: str, coluna_prioridade
 
 if __name__ == '__main__':
 
-    tabelas = leitura_arquivos(TABLES, args.input_dir)
+    tabelas = leitura_arquivos(args.input_dir)
 
     for nome_tabela, df in tabelas.items():
         if nome_tabela == 'clientes':

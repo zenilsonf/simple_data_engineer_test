@@ -20,15 +20,6 @@ parser.add_argument('--out', dest='output_dir', required=True)
 
 args = parser.parse_args()
 
-# print("Pasta de entrada:", args.input_dir)
-# print("Pasta de saída:", args.output_dir)\
-
-# def logger(name: str) -> logging.Logger:
-#     """Cria um logger com o nome especificado."""
-#     logger = logging.getLogger(name)
-#     logger.setLevel(logging.INFO)
-#     return logger
-
 
 def leitura_arquivos(diretorio: str) -> dict:
 
@@ -91,6 +82,7 @@ def normaliza_valores_numericos(df: pd.DataFrame, nome_coluna: str) -> pd.DataFr
         Returns:
             pd.DataFrame: DataFrame com colunas numéricas normalizadas.
     """
+
     logging.info(f'Normalizando valores numéricos na coluna: {nome_coluna}')
     if nome_coluna in df.columns:
         # Substitui strings vazias por NaN antes de converter
@@ -124,23 +116,46 @@ def deduplicar_dimensao(df: pd.DataFrame, chave_primaria: str, coluna_prioridade
     return df_deduplicado
 
 
+def fato_diario(dfvendas: pd.DataFrame) -> pd.DataFrame:
+    """
+        Cria uma tabela de fatos diários a partir de um DataFrame.
+        Args:
+            df (pd.DataFrame): DataFrame contendo os dados.
+        Returns:
+            pd.DataFrame: DataFrame com a tabela de fatos diários.
+    """
+
+    logging.info('Criando tabela de fatos diários.')
+
+    dfvendas['valor_total'] = dfvendas['valor'] * dfvendas['quantidade']
+    df_diario = dfvendas.groupby(['cliente_id', 'data_formatada'])['valor_total'].sum().reset_index()
+
+    print(df_diario.head())
+
+    return df_diario
+
 if __name__ == '__main__':
 
     tabelas = leitura_arquivos(args.input_dir)
 
     for nome_tabela, df in tabelas.items():
         if nome_tabela == 'clientes':
-            df = normaliza_datas(df, 'updated_at')
-            print(df.head())
-            df = deduplicar_dimensao(df, 'cliente_id', 'updated_at')
+            clientes_df = normaliza_datas(df, 'updated_at')
+            clientes_df = deduplicar_dimensao(clientes_df, 'cliente_id', 'updated_at')
         elif nome_tabela == 'vendas':
-            df = normaliza_datas(df, 'data')
-            df = normaliza_valores_numericos(df, 'valor')
-            df = normaliza_valores_numericos(df, 'quantidade')
+            vendas_df = normaliza_datas(df, 'data')
+            vendas_df = normaliza_valores_numericos(vendas_df, 'valor')
+            vendas_df = normaliza_valores_numericos(vendas_df, 'quantidade')
+            vendas_df = fato_diario(vendas_df)
 
-        if not os.path.exists(args.output_dir):
-            os.makedirs(args.output_dir)
+    df_diario = vendas_df.merge(clientes_df[['cliente_id']], on='cliente_id', how='inner')
+    df_diario = df_diario.rename(columns={'data_formatada': 'dt'})
+    df_diario = df_diario[['dt', 'cliente_id', 'valor_total']]  
 
-        df.to_csv(f"{args.output_dir}/{nome_tabela}_tratado.csv", index=False)
-        logging.info(f"{nome_tabela}_tratado.csv salvo com sucesso.")
+
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+
+    df_diario.to_csv(f"{args.output_dir}/diario.csv", index=False)
+    logging.info(f"diario.csv salvo com {len(df_diario)} registros.")
 
